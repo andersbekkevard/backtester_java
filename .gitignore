@@ -1,13 +1,27 @@
+# Maven build output
 /target/
-!.mvn/wrapper/maven-wrapper.jar
+
+# Compiled class files
 *.class
+
+# Log files
 *.log
+
+# macOS system files
 .DS_Store
+
+# Windows system files
 Thumbs.db
+
+# IntelliJ IDEA project files
 .idea/
 *.iml
 *.iws
 *.ipr
 out/
+
+# VS Code settings
 .vscode/
+
+# Archives
 *.zip
