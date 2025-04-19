@@ -19,8 +19,8 @@ public class StockExchange {
 	private static final String CLOSE_HEADER = "Close";
 	public static final String AAPL_TICKER = "AAPL";
 	public static final String MSFT_TICKER = "MSFT";
-	public static final String AAPL_PATH = "C:\\Users\\Anders\\Code\\java\\backtester_java\\src\\main\\java\\data\\aapl.csv";
-	public static final String MSFT_PATH = "C:\\Users\\Anders\\Code\\java\\backtester_java\\src\\main\\java\\data\\msft.csv";
+	public static final String AAPL_PATH = "src\\main\\java\\resources\\data\\aapl.csv";
+	public static final String MSFT_PATH = "src\\main\\java\\resources\\data\\msft.csv";
 
 	public static StockExchange demoExchange() {
 		try {
@@ -177,5 +177,9 @@ public class StockExchange {
 			throw new IllegalArgumentException("Exchange doesnt contain stock");
 
 		return stockMap.keySet().stream().filter(s -> ticker.equals(s.getTicker())).findFirst().get();
+	}
+
+	public static void main(String[] args) {
+		System.out.println(AAPL_PATH);
 	}
 }
