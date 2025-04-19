@@ -1,66 +1,136 @@
 package infrastructure;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
+
+import resources.enums.OrderType;
 
 /**
  * A portfolio represents an actors assets as well as cash reserves
  */
-public class Portfolio implements PriceUpdateListener {
+public class Portfolio implements BarListener {
 
 	/* ================================= Fields ================================= */
-	private final StockExchange exchange;
+	private Strategy strategy;
 	private final double startingCash;
 	private double cashReserve;
-	private final List<StockHolding> stocks = new ArrayList<>();
+	private final Map<String, Integer> positions = new HashMap<>();
+	private final Map<String, Double> closePrices = new HashMap<>();
+	private final List<Order> pendingOrders = new ArrayList<>();
+	/**
+	 * History is now kept in a dumb list. In the future I plan to extend this
+	 * functionalty so each portfolio has its own tracker that keeps track of
+	 * position sizes at different dates and can calculate things like vol, sharpe
+	 * etc
+	 */
+	private final List<Double> history = new ArrayList<>();
 
 	/* =============================== Constructor ============================== */
-	public Portfolio(StockExchange exchange, double startingCash) {
+	public Portfolio(double startingCash) {
 		this.startingCash = startingCash;
 		this.cashReserve = startingCash;
-		this.exchange = exchange;
-		exchange.addPortfolio(this);
 	}
 
-	/* ============================= Public methods ============================= */
-	public void buyStock(String ticker, double amount) {
-		double price = exchange.getStockPrice(ticker);
-		if (cashReserve - (price * amount) < 0)
-			throw new IllegalStateException("Insufficient funds");
+	public void setStrategy(Strategy strategy) {
+		if (strategy == null)
+			throw new IllegalArgumentException();
+		if (strategy.equals(this.strategy))
+			return;
+		this.strategy = strategy;
+		if (!this.equals(strategy.getPortfolio())) {
+			strategy.setPortfolio(this);
+		}
+	}
 
-		stocks.add(new StockHolding(ticker, price, amount));
+	public Strategy getStrategy() {
+		return strategy;
+	}
+
+	private double equityValue() {
+		double value = 0;
+		for (String ticker : positions.keySet()) {
+			value += positions.getOrDefault(ticker, 0) * closePrices.getOrDefault(ticker, 0.0);
+		}
+		return value;
+	}
+
+	private void executeOrders() {
+		for (Order o : pendingOrders) {
+			try {
+				executeSingleOrder(o);
+			} catch (IllegalStateException e) {
+				System.err.println("Insufficient funds. Order: " + o + " was not executed");
+			}
+		}
+		pendingOrders.clear();
+	}
+
+	private void executeSingleOrder(Order o) {
+		if (!closePrices.containsKey(o.getTicker()))
+			throw new IllegalArgumentException("Dont have acces to price of this order");
+
+		switch (o.getOrderType()) {
+			case OrderType.BUY -> {
+				if (o.getQuantity() * closePrices.get(o.getTicker()) > cashReserve)
+					throw new IllegalStateException("Dont have enough cash to place order");
+
+				positions.put(o.getTicker(), positions.getOrDefault(o.getTicker(), 0) + o.getQuantity());
+				cashReserve -= o.getQuantity() * closePrices.get(o.getTicker());
+			}
+
+			case OrderType.SELL -> {
+				if (o.getQuantity() > positions.getOrDefault(o.getTicker(), 0))
+					throw new IllegalStateException("Dont have enough holdings in this stock");
+
+				positions.put(o.getTicker(), positions.getOrDefault(o.getTicker(), 0) - o.getQuantity());
+				cashReserve += o.getQuantity() * closePrices.get(o.getTicker());
+			}
+			default -> throw new AssertionError();
+		}
+	}
+
+	public List<Double> getHistory() {
+		return history;
+	}
+
+	@Override
+	public void acceptBars(Map<String, Bar> barMap) {
+		history.add(getValue());
+		closePrices.clear();
+		barMap.keySet().stream().forEach(t -> closePrices.put(t, barMap.get(t).close()));
+		executeOrders();
+	}
+
+	/* ======================== Portfolio to Strategy API ======================= */
+	public void placeOrder(Order order) {
+		pendingOrders.add(order);
+	}
+
+	public double getCashReserve() {
+		return cashReserve;
 	}
 
 	public double getValue() {
-		return cashReserve + stocks.stream().mapToDouble(StockHolding::getValue).sum();
+		return cashReserve + equityValue();
+	}
+
+	public int getQuantity(String ticker) {
+		return positions.getOrDefault(ticker, 0);
+	}
+
+	public double getStartingCash() {
+		return startingCash;
 	}
 
 	/**
-	 * This method finds stock and then notifies if present
-	 * Doing a naive priceUpdate on all StockHoldings would also work
-	 * as the ticker verification logic is implemented there aswell
-	 * Although I think this is more efficient
-	 */
-	@Override
-	public void priceUpdate(String ticker, double oldPrice, double newPrice) {
-		Optional<StockHolding> holding = getHoldingFromTicker(ticker);
-		if (holding.isEmpty())
-			return;
-		holding.get().priceUpdate(ticker, oldPrice, newPrice);
-	}
-
-	/* ============================= Private helpers ============================ */
-	/**
-	 * Returns an optional of the StockHolding corresponding to the ticker if it
-	 * exists in the portfolio
+	 * Returns a double between 0 and 1 signifying the percentage of our funds that
+	 * are invested
 	 * 
-	 * @param ticker
 	 * @return
 	 */
-	private Optional<StockHolding> getHoldingFromTicker(String ticker) {
-		if (ticker == null || ticker.equals(""))
-			throw new IllegalArgumentException();
-		return stocks.stream().filter(s -> ticker.equals(s.getTicker())).findFirst();
+	public double getInvestedRatio() {
+		return equityValue() / getValue();
 	}
 }

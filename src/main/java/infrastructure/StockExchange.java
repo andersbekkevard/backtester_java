@@ -2,25 +2,23 @@ package infrastructure;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The stock exchange is the object that runs the simulation. It has a list of
- * portfolios as listeners, and notifies them at every priceupdate
- * Stock data, like tickes and prices are held in Stock-objects
+ * portfolios as listeners, at every bar with OHLCV data of each ticker
  * It uses the CSVparser helper class to read the csv files
  */
 public class StockExchange {
 	/* ================================= Static ================================= */
-	private record PriceChange(String ticker, double oldPrice, double newPrice) {
-	}
 
-	private static final String CLOSE_HEADER = "Close";
 	public static final String AAPL_TICKER = "AAPL";
 	public static final String MSFT_TICKER = "MSFT";
-	public static final String AAPL_PATH = "C:\\Users\\Anders\\Code\\java\\backtester_java\\src\\main\\java\\data\\aapl.csv";
-	public static final String MSFT_PATH = "C:\\Users\\Anders\\Code\\java\\backtester_java\\src\\main\\java\\data\\msft.csv";
+	public static final String AAPL_PATH = "src\\main\\java\\resources\\data\\aapl.csv";
+	public static final String MSFT_PATH = "src\\main\\java\\resources\\data\\msft.csv";
 
 	public static StockExchange demoExchange() {
 		try {
@@ -36,9 +34,28 @@ public class StockExchange {
 	}
 
 	/* ================================= Fields ================================= */
-	private final HashMap<Stock, CSVparser> stockMap = new HashMap<>();
+	/*
+	 * Two maps for keeping track of stocks. One relates the ticker to the CSVparser
+	 * The other one keeps track of what parsers are finished parsing
+	 */
+	private final Map<String, CSVparser> stockMap = new HashMap<>();
+	private final Map<String, Boolean> isFinished = new HashMap<>();
+
+	/*
+	 * Both portfolios and strategies register as listeners at the exchange
+	 * It is important that a strategy is initialized with a portfolio
+	 */
+	private final List<Strategy> strategies = new ArrayList<>();
 	private final List<Portfolio> portfolios = new ArrayList<>();
-	private final List<PriceChange> priceChanges = new ArrayList<>();
+
+	/*
+	 * Barmap is filled up each day, and all listeners are notified before moving on
+	 */
+	private final Map<String, Bar> barMap = new HashMap<>();
+
+	/*
+	 * These are simple fields that govern the process of a StockExchange
+	 */
 	private boolean isRunning = false;
 	private int frequency = 1;
 
@@ -50,12 +67,8 @@ public class StockExchange {
 		if (isRunning)
 			throw new IllegalStateException();
 
-		Stock stock = new Stock(ticker, dataPath);
-		if (!stockMap.containsKey(stock))
-			stockMap.put(stock, new CSVparser(stock.getDataPath()));
-
-		// Calls nextPrice() once to get an initial prize for portfolio purchases
-		nextPrice(stock);
+		stockMap.putIfAbsent(ticker, new CSVparser(dataPath));
+		isFinished.putIfAbsent(ticker, false);
 	}
 
 	/**
@@ -83,76 +96,61 @@ public class StockExchange {
 			portfolios.add(portfolio);
 	}
 
+	/**
+	 * Adds a strategy to be notified
+	 * 
+	 * @param strategy
+	 */
+	public void addStrategy(Strategy strategy) {
+		if (!strategies.contains(strategy))
+			strategies.add(strategy);
+	}
+
+	/* =============================== Event Loop =============================== */
+	public void run() {
+		isRunning = true;
+		while (step()) {
+		}
+		System.out.println("Finished parsing files");
+		System.out.println("Final portfolio value is: ");
+		portfolios.stream().forEach(p -> System.out.println(p.getHistory().get(p.getHistory().size() - 10)));
+	}
+
 	public boolean step() {
 		if (allFinishedParsing())
 			return false;
-		for (Stock s : stockMap.keySet()) {
-			nextPrice(s);
+		for (String ticker : stockMap.keySet()) {
+			tick(ticker);
 		}
-
 		onBarClose();
 		return true;
 	}
 
-	private void onBarClose() {
-		for (PriceChange p : priceChanges) {
-			notifyListeners(p.ticker(), p.oldPrice(), p.newPrice());
-		}
-		priceChanges.clear();
-	}
-
-	public void run() {
-		while (step()) {
-
-		}
-	}
-
-	public double getStockPrice(String ticker) {
-		Stock stock = getStockFromTicker(ticker);
-		return stock.getPrice();
-	}
-
-	/*
-	 * ============================== Private Helpers =============================
-	 */
-
-	/**
-	 * Calls the CSVparser corresponding to the Stock object for the next price and
-	 * updates the Stock price
-	 * If price was changed, listeners are notified
-	 * 
-	 * @param stock
-	 */
-	private void nextPrice(Stock stock) {
-		if (!stockMap.containsKey(stock))
+	private void tick(String ticker) {
+		if (!stockMap.containsKey(ticker))
 			throw new IllegalArgumentException();
 
+		// Lap through the unwanted bars. If any are absent we are finished parsing
+		CSVparser parser = stockMap.get(ticker);
 		for (int i = 0; i < frequency; i++) {
-			boolean wentToNext = stockMap.get(stock).goToNext();
+			boolean wentToNext = parser.goToNext();
 			if (!wentToNext) {
-				stock.setFinishedParsing(true);
+				isFinished.put(ticker, true);
 				return;
 			}
 		}
-		// Set new stockprice in map, and store priceChange
-		double oldPrice = stock.getPrice();
-		double newPrice = stockMap.get(stock).getValue(CLOSE_HEADER);
-		stock.setPrice(newPrice);
-		if (oldPrice != newPrice) {
-			stock.setPrice(newPrice);
-			priceChanges.add(new PriceChange(stock.getTicker(), oldPrice, newPrice));
-		}
+		Bar bar = stockMap.get(ticker).getBar();
+		barMap.put(ticker, bar);
 	}
 
 	/**
-	 * Notifies all listeners of a change in a stock price
-	 * 
-	 * @param ticker
-	 * @param oldPrice
-	 * @param newPrice
+	 * Handles notification and clearing up the maps
 	 */
-	private void notifyListeners(String ticker, double oldPrice, double newPrice) {
-		portfolios.stream().forEach(p -> p.priceUpdate(ticker, oldPrice, newPrice));
+	private void onBarClose() {
+		Map<String, Bar> outputMap = Collections.unmodifiableMap(barMap);
+		portfolios.stream().forEach(p -> p.acceptBars(outputMap));
+		strategies.stream().forEach(s -> s.acceptBars(outputMap));
+		barMap.clear();
 	}
 
 	/**
@@ -160,22 +158,6 @@ public class StockExchange {
 	 * 
 	 */
 	private boolean allFinishedParsing() {
-		return stockMap.keySet().stream().allMatch(Stock::isFinishedParsing);
-	}
-
-	/**
-	 * Helper method that returns the Stock object corresponding to a ticker if it
-	 * exists in the stockMap
-	 * 
-	 * @param ticker
-	 * @return
-	 */
-	private Stock getStockFromTicker(String ticker) {
-		if (ticker == null || ticker.equals(""))
-			throw new IllegalArgumentException();
-		if (!stockMap.keySet().stream().anyMatch(s -> s.getTicker().equals(ticker)))
-			throw new IllegalArgumentException("Exchange doesnt contain stock");
-
-		return stockMap.keySet().stream().filter(s -> ticker.equals(s.getTicker())).findFirst().get();
+		return isFinished.values().stream().allMatch(finished -> finished);
 	}
 }
