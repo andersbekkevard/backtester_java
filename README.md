@@ -7,6 +7,11 @@ This is still work in progress, but it is already functional.
 
 This project allows you to test and compare trading strategies on historical data. The system is modular, so stock universes, strategies and signals can easily be switched. The system takes CSV-files on Date-OHLCV format. They can easily be downloaded from Yahoo Finance using import_data.py. Just remember to add the new tickers and paths to the StockExchange
 
+## Examples
+
+![Backtest chart](images/test_chart.png)
+![Example results from EMA](images/example_results.png)
+
 ## Features
 
 - **Strategy Framework**: Implement and plug in custom strategies using existing signals if desired

@@ -6,8 +6,6 @@ import java.util.List;
 import io.Logger;
 import strategies.BuyAndHoldStrategy;
 import strategies.EMAStrategy;
-import strategies.MomentumStrategy;
-import strategies.StopLossStrategy;
 
 public class App {
 
@@ -26,13 +24,13 @@ public class App {
 				"EMA",
 				(p, l) -> new EMAStrategy(p, l)));
 
-		configs.add(new BacktestOrchestrator.StrategyConfig(
-				"Stop Loss",
-				(p, l) -> new StopLossStrategy(p, l)));
+		// configs.add(new BacktestOrchestrator.StrategyConfig(
+		// "Stop Loss",
+		// (p, l) -> new StopLossStrategy(p, l)));
 
-		configs.add(new BacktestOrchestrator.StrategyConfig(
-				"Momentum",
-				(p, l) -> new MomentumStrategy(p, l)));
+		// configs.add(new BacktestOrchestrator.StrategyConfig(
+		// "Momentum",
+		// (p, l) -> new MomentumStrategy(p, l)));
 
 		BacktestOrchestrator orchestrator = new BacktestOrchestrator(logger, configs,
 				1000.0);
