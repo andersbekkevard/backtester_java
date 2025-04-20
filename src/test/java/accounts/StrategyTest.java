@@ -1,5 +1,6 @@
 package accounts;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -10,18 +11,18 @@ import org.junit.Test;
 
 import engine.Bar;
 import io.Logger;
-import strategies.Strategy;
+import strategies.EMAStrategy;
 
 public class StrategyTest {
     private Portfolio portfolio;
     private Logger logger;
-    private Strategy strategy;
+    private EMAStrategy strategy;
 
     @Before
     public void setUp() {
         logger = new Logger(System.out); // Replace with a mock if you want to capture logs
         portfolio = new Portfolio(1000.0, logger);
-        strategy = new Strategy(portfolio, logger);
+        strategy = new EMAStrategy(portfolio, logger);
     }
 
     @Test
@@ -34,7 +35,7 @@ public class StrategyTest {
     @Test
     public void testInvalidBarSkipsOrder() {
         Map<String, Bar> bars = new HashMap<>();
-        bars.put("AAPL", new Bar(0.0, 0.0, 0.0, 0.0, 0.0)); // Invalid close
+        bars.put("AAPL", new Bar(LocalDateTime.now(), 0.0, 0.0, 0.0, 0.0, 0.0)); // Invalid close
         strategy.acceptBars(bars);
         assertTrue(portfolio.getPendingOrders().isEmpty());
     }

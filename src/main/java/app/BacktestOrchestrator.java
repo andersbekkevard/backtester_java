@@ -1,92 +1,120 @@
 package app;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.BiFunction;
+
 import accounts.Portfolio;
+import accounts.PortfolioHistory;
 import engine.StockExchange;
 import io.Logger;
 import strategies.Strategy;
-import strategies.Strategy;
 
-/**
- * Orchestrates the setup and running of the backtest.
- * Handles all dependency wiring, running, and (eventually) result reporting.
- */
 public class BacktestOrchestrator {
-    private final Logger logger;
-    private final StockExchange exchange;
-    private final Portfolio portfolio;
-    private final Strategy strategy;
+	private static final String SEPARATOR = "=================================";
 
-    public BacktestOrchestrator(Logger logger) {
-        this.logger = logger;
-        this.exchange = StockExchange.demoExchange(logger);
-        this.portfolio = new Portfolio(10000, logger);
-        this.strategy = new Strategy(portfolio, logger);
-        wireDependencies();
-    }
+	private final List<Portfolio> portfolios = new ArrayList<>();
+	private final List<Strategy> strategies = new ArrayList<>();
+	private final List<String> labels = new ArrayList<>();
+	private final Logger logger;
+	private final StockExchange exchange;
 
-    private void wireDependencies() {
-        exchange.addPortfolio(portfolio);
-        exchange.addStrategy(strategy);
-    }
+	public static class StrategyConfig {
+		public final String label;
+		public final BiFunction<Portfolio, Logger, Strategy> factory;
 
-    public void runBacktest() {
-        exchange.run();
-    }
+		public StrategyConfig(String label, BiFunction<Portfolio, Logger, Strategy> factory) {
+			this.label = label;
+			this.factory = factory;
+		}
+	}
 
-    public Portfolio getPortfolio() {
-        return portfolio;
-    }
+	public BacktestOrchestrator(Logger logger, List<StrategyConfig> strategyConfigs, double startingCash) {
+		this.logger = logger;
+		this.exchange = StockExchange.demoExchange(logger);
+		for (StrategyConfig config : strategyConfigs) {
+			Portfolio p = new Portfolio(startingCash, logger);
+			Strategy s = config.factory.apply(p, logger);
+			portfolios.add(p);
+			strategies.add(s);
+			labels.add(config.label);
+		}
+		wireDependencies();
+	}
 
-    public StockExchange getExchange() {
-        return exchange;
-    }
+	private void wireDependencies() {
+		for (Portfolio p : portfolios) {
+			exchange.addPortfolio(p);
+		}
+		for (Strategy s : strategies) {
+			exchange.addStrategy(s);
+		}
+	}
 
-    public Strategy getStrategy() {
-        return strategy;
-    }
+	public void runBacktest() {
+		exchange.run();
+	}
 
-    public Logger getLogger() {
-        return logger;
-    }
+	public StockExchange getExchange() {
+		return exchange;
+	}
 
-    /**
-     * Prints a comprehensive backtest result summary.
-     */
-    public void onFinish() {
-        logger.infoNoFlag("==============================");
-        logger.infoNoFlag("      BACKTEST RESULT SUMMARY  ");
-        logger.infoNoFlag("==============================");
-        logger.infoNoFlag(String.format("Starting Cash:      $%.2f", portfolio.getStartingCash()));
-        logger.infoNoFlag(String.format("Final Portfolio Value: $%.2f", portfolio.getValue()));
-        logger.infoNoFlag(String.format("Cash Reserve:       $%.2f", portfolio.getCashReserve()));
-        logger.infoNoFlag("\n--- Positions ---");
-        for (String ticker : portfolio.getPositions().keySet()) {
-            int qty = portfolio.getQuantity(ticker);
-            double price = portfolio.getClosePrices().getOrDefault(ticker, 0.0);
-            logger.infoNoFlag(String.format("%s: %d shares @ $%.2f", ticker, qty, price));
-        }
-        logger.infoNoFlag("\n--- Performance ---");
-        double start = portfolio.getStartingCash();
-        double end = portfolio.getValue();
-        double ret = (end - start) / start * 100.0;
-        logger.infoNoFlag(String.format("Total Return:       %.2f%%", ret));
-        // Print history summary
-        java.util.List<Double> history = portfolio.getHistory();
-        if (history.size() > 1) {
-            double min = history.stream().min(Double::compare).orElse(start);
-            double max = history.stream().max(Double::compare).orElse(end);
-            logger.infoNoFlag(String.format("Min Value:          $%.2f", min));
-            logger.infoNoFlag(String.format("Max Value:          $%.2f", max));
-            logger.infoNoFlag(String.format("Num Steps:          %d", history.size()));
-        }
-        logger.infoNoFlag("==============================");
-    }
+	public Logger getLogger() {
+		return logger;
+	}
 
-    /**
-     * Plots the tracked portfolio returns using XChart.
-     */
-    public void plotPortfolioReturns() {
-        portfolio.getHistoryTracker().plotReturnsChart("Portfolio Value Over Time");
-    }
+	/**
+	 * Prints a comprehensive backtest result summary.
+	 */
+	public void onFinish() {
+		logger.infoNoFlag(SEPARATOR);
+		logger.infoNoFlag("      BACKTEST RESULT SUMMARY");
+		logger.infoNoFlag(SEPARATOR);
+
+		for (int i = 0; i < portfolios.size(); i++) {
+			logger.infoNoFlag("\n" + SEPARATOR);
+			logger.infoNoFlag(String.format(" STRATEGY: %-40s ", labels.get(i)));
+			logger.infoNoFlag(SEPARATOR);
+			printPortfolioSummary(portfolios.get(i));
+		}
+
+		logger.infoNoFlag("==============================");
+	}
+
+	private void printPortfolioSummary(Portfolio portfolio) {
+		logger.infoNoFlag(String.format("Starting Cash:      $%.2f", portfolio.getStartingCash()));
+		logger.infoNoFlag(String.format("Final Portfolio Value: $%.2f", portfolio.getTotalValue()));
+		logger.infoNoFlag(String.format("Cash Reserve:       $%.2f", portfolio.getCashReserve()));
+		logger.infoNoFlag("\n--- Positions ---");
+		for (String ticker : portfolio.getPositions().keySet()) {
+			int qty = portfolio.getQuantity(ticker);
+			double price = portfolio.getClosePrices().getOrDefault(ticker, 0.0);
+			logger.infoNoFlag(String.format("%s: %d shares @ $%.2f", ticker, qty, price));
+		}
+		logger.infoNoFlag("\n--- Performance ---");
+		double start = portfolio.getStartingCash();
+		double end = portfolio.getTotalValue();
+		double ret = (end - start) / start * 100.0;
+		logger.infoNoFlag(String.format("Total Return:       %.2f%%", ret));
+		// Print history summary
+		java.util.List<Double> history = portfolio.getHistory();
+		if (history.size() > 1) {
+			double min = history.stream().min(Double::compare).orElse(start);
+			double max = history.stream().max(Double::compare).orElse(end);
+			logger.infoNoFlag(String.format("Min Value:          $%.2f", min));
+			logger.infoNoFlag(String.format("Max Value:          $%.2f", max));
+			logger.infoNoFlag(String.format("Num Steps:          %d", history.size()));
+		}
+	}
+
+	/**
+	 * Plots the tracked portfolio returns using XChart.
+	 */
+	public void plotPortfolioReturns() {
+		List<PortfolioHistory> histories = new ArrayList<>();
+		for (Portfolio p : portfolios) {
+			histories.add(p.getHistoryTracker());
+		}
+		PortfolioHistory.plotMultipleReturnsChart(histories, labels, "Portfolio Value Over Time: All Strategies");
+	}
 }
-

@@ -3,6 +3,9 @@ package io;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -17,9 +20,20 @@ import engine.Bar;
  * Handles malformed lines, missing data, and ensures resources are managed.
  */
 public class CSVparser implements Closeable {
+	/**
+	 * This formatter can be changed in order to accomodate different csv styles. If
+	 * using simple localdateFormatter one has to apply .atStartOfDay() to get
+	 * LocalDateTime
+	 */
+
+	private static final DateTimeFormatter localDateFormatter = DateTimeFormatter.ISO_LOCAL_DATE;
+	private static final DateTimeFormatter localDateTimeFormatter = DateTimeFormatter
+			.ofPattern("yyyy-MM-dd HH:mm:ssXXX");
+
 	private final String dataPath;
 	private Scanner scanner;
 	private List<String> headers;
+	private LocalDateTime thisTimestamp;
 	private Map<String, Double> thisLine = new HashMap<>();
 	private boolean headersPopulated = false;
 
@@ -54,7 +68,8 @@ public class CSVparser implements Closeable {
 	}
 
 	/**
-	 * Advances to the next data line, parsing values into thisLine map.
+	 * Advances to the next data line, parsing date into thisTimestamp and values
+	 * into thisLine map.
 	 * Handles missing or malformed data gracefully.
 	 * 
 	 * @return true if a new line was read, false if EOF
@@ -63,9 +78,12 @@ public class CSVparser implements Closeable {
 		thisLine.clear();
 		while (scanner.hasNext()) {
 			String line = scanner.next();
+			// Skipping blank lines
 			if (line.trim().isEmpty())
-				continue; // skip blank lines
+				continue;
+
 			String[] tokens = line.split(",");
+			thisTimestamp = LocalDate.parse(tokens[0], localDateFormatter).atStartOfDay();
 			for (int i = 1; i < headers.size(); i++) {
 				if (i < tokens.length) {
 					try {
@@ -77,7 +95,6 @@ public class CSVparser implements Closeable {
 					thisLine.put(headers.get(i), Double.NaN);
 				}
 			}
-			// Only return true if we have at least required columns
 			return true;
 		}
 		return false;
@@ -97,37 +114,35 @@ public class CSVparser implements Closeable {
 		goToNext();
 	}
 
-	/**
-	 * Get the value for a given header in the current line.
-	 * 
-	 * @param header column name
-	 * @return value as double, or NaN if missing/malformed
-	 * @throws IllegalArgumentException if header does not exist
-	 */
-	public double getValue(String header) {
-		if (!headers.contains(header))
+	public double getDoubleValue(String header) {
+		if (!headers.contains(header) || "Date".equals(header))
 			throw new IllegalArgumentException("Header not found: " + header);
 		return thisLine.getOrDefault(header, Double.NaN);
+	}
+
+	public LocalDateTime getTimestamp() {
+		return this.thisTimestamp;
 	}
 
 	/**
 	 * Returns a Bar object for the current line, or null if data is
 	 * missing/malformed.
-	 * Assumes CSV data is in OHLCV format.
+	 * Assumes CSV data is in "Date,O,H,L,C,V\n" format.
 	 */
 	public Bar getBar() {
 		try {
 			if (thisLine.isEmpty() || !thisLine.containsKey("Open"))
 				return null;
-			double open = getValue("Open");
-			double high = getValue("High");
-			double low = getValue("Low");
-			double close = getValue("Close");
-			double volume = getValue("Volume");
+			LocalDateTime timestamp = getTimestamp();
+			double open = getDoubleValue("Open");
+			double high = getDoubleValue("High");
+			double low = getDoubleValue("Low");
+			double close = getDoubleValue("Close");
+			double volume = getDoubleValue("Volume");
 			if (Double.isNaN(open) || Double.isNaN(high) || Double.isNaN(low) || Double.isNaN(close)
 					|| Double.isNaN(volume))
 				return null;
-			return new Bar(open, high, low, close, volume);
+			return new Bar(timestamp, open, high, low, close, volume);
 		} catch (Exception e) {
 			return null;
 		}

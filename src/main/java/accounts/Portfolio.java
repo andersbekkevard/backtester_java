@@ -18,27 +18,12 @@ import resources.enums.OrderType;
 public class Portfolio implements BarListener {
 
 	/* ================================= Fields ================================= */
-
 	private final double startingCash;
 	private double cashReserve;
 	private final Map<String, Integer> positions = new HashMap<>();
 	private final Map<String, Double> closePrices = new HashMap<>();
-
-	/**
-	 * Returns an unmodifiable view of the current positions (ticker -> quantity).
-	 */
-	public Map<String, Integer> getPositions() {
-		return Collections.unmodifiableMap(positions);
-	}
-
-	/**
-	 * Returns an unmodifiable view of the current close prices (ticker -> price).
-	 */
-	public Map<String, Double> getClosePrices() {
-		return Collections.unmodifiableMap(closePrices);
-	}
-
 	private final List<Order> pendingOrders = new ArrayList<>();
+
 	/**
 	 * History is now kept in a dumb list. In the future I plan to extend this
 	 * functionalty so each portfolio has its own tracker that keeps track of
@@ -50,21 +35,11 @@ public class Portfolio implements BarListener {
 	private final Logger logger;
 
 	/* =============================== Constructor ============================== */
-	/**
-	 * Create a Portfolio with initial cash and logger.
-	 */
+
 	public Portfolio(double startingCash, Logger logger) {
 		this.startingCash = startingCash;
 		this.cashReserve = startingCash;
 		this.logger = Objects.requireNonNull(logger);
-	}
-
-	private double equityValue() {
-		double value = 0;
-		for (String ticker : positions.keySet()) {
-			value += positions.getOrDefault(ticker, 0) * closePrices.getOrDefault(ticker, 0.0);
-		}
-		return value;
 	}
 
 	private void executeOrders() {
@@ -106,27 +81,23 @@ public class Portfolio implements BarListener {
 		}
 	}
 
-	public List<Double> getHistory() {
-		return history;
-	}
-
 	/**
-	 * Detailed history tracker of portfolio snapshots over time.
+	 * Records snapshot in historytracker, then executes orders and finally updates
+	 * the closePrices. Assumes all bars come in at the same timestamp
 	 */
-	public PortfolioHistory getHistoryTracker() {
-		return historyTracker;
-	}
-
 	@Override
 	public void acceptBars(Map<String, Bar> barMap) {
-		// Record snapshot in history tracker
-		LocalDateTime timestamp = LocalDateTime.now();
-		double totalValue = getValue();
+		if (barMap == null || barMap.isEmpty())
+			throw new IllegalArgumentException("Can't send empty barMap to portfolio");
+
+		LocalDateTime timestamp = barMap.values().stream().findFirst().get().timestamp();
 		Map<String, Integer> positionsSnapshot = Collections.unmodifiableMap(new HashMap<>(positions));
+		double totalValue = getTotalValue();
 		historyTracker.record(timestamp, positionsSnapshot, totalValue);
-		// Keep simple value history for backwards compatibility
+
+		// Keep simple value history for debugging
 		history.add(totalValue);
-		// Execute pending orders at the price used for sizing
+
 		executeOrders();
 		closePrices.clear();
 		for (String t : barMap.keySet()) {
@@ -146,8 +117,16 @@ public class Portfolio implements BarListener {
 		return cashReserve;
 	}
 
-	public double getValue() {
-		return cashReserve + equityValue();
+	public double getEquityValue() {
+		double value = 0;
+		for (String ticker : positions.keySet()) {
+			value += positions.getOrDefault(ticker, 0) * closePrices.getOrDefault(ticker, 0.0);
+		}
+		return value;
+	}
+
+	public double getTotalValue() {
+		return cashReserve + getEquityValue();
 	}
 
 	public int getQuantity(String ticker) {
@@ -165,11 +144,25 @@ public class Portfolio implements BarListener {
 	/**
 	 * Returns a double between 0 and 1 signifying the percentage of our funds that
 	 * are invested
-	 * 
-	 * @return
 	 */
 	public double getInvestedRatio() {
-		return equityValue() / getValue();
+		return getEquityValue() / getTotalValue();
 	}
 
+	/* ============================ Generalt getters ============================ */
+	public Map<String, Integer> getPositions() {
+		return Collections.unmodifiableMap(positions);
+	}
+
+	public Map<String, Double> getClosePrices() {
+		return Collections.unmodifiableMap(closePrices);
+	}
+
+	public PortfolioHistory getHistoryTracker() {
+		return historyTracker;
+	}
+
+	public List<Double> getHistory() {
+		return history;
+	}
 }

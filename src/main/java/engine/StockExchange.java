@@ -23,14 +23,17 @@ public class StockExchange {
 
 	public static final String AAPL_TICKER = "AAPL";
 	public static final String MSFT_TICKER = "MSFT";
+	public static final String SNP_TICKER = "SNP";
 	public static final String AAPL_PATH = "src\\main\\java\\resources\\data\\aapl.csv";
 	public static final String MSFT_PATH = "src\\main\\java\\resources\\data\\msft.csv";
+	public static final String SNP_PATH = "src\\main\\java\\resources\\data\\snp.csv";
 
 	public static StockExchange demoExchange(Logger logger) {
 		try {
 			StockExchange ex = new StockExchange(logger);
 			ex.addStock(AAPL_TICKER, AAPL_PATH);
 			ex.addStock(MSFT_TICKER, MSFT_PATH);
+			ex.addStock(SNP_TICKER, SNP_PATH);
 			return ex;
 
 		} catch (IOException e) {
@@ -46,11 +49,11 @@ public class StockExchange {
 	 */
 	private final Map<String, CSVparser> stockMap = new HashMap<>();
 	private final Map<String, Boolean> isFinished = new HashMap<>();
-	private boolean loopOnEnd = false; // If true, restart CSVparser when reaching end
 
 	/*
 	 * Both portfolios and strategies register as listeners at the exchange
 	 * It is important that a strategy is initialized with a portfolio
+	 * This is handled by the BactestOrchestrator
 	 */
 	private final List<Strategy> strategies = new ArrayList<>();
 	private final List<Portfolio> portfolios = new ArrayList<>();
@@ -67,17 +70,12 @@ public class StockExchange {
 	private int frequency = 1;
 	private final Logger logger;
 
-	/**
-	 * Create a StockExchange with logger.
-	 */
+	/* =============================== Constructor ============================== */
 	public StockExchange(Logger logger) {
 		this.logger = Objects.requireNonNull(logger);
 	}
 
 	/* =========================== Initializing phase ========================== */
-	/**
-	 * Adds a stock record to the hashmap, and reads the first price
-	 */
 	public void addStock(String ticker, String dataPath) throws IOException {
 		if (isRunning)
 			throw new IllegalStateException();
@@ -153,25 +151,18 @@ public class StockExchange {
 		}
 
 		parser = stockMap.get(ticker);
-		if (parser != null) {
-			Bar bar = parser.getBar();
-			if (bar != null) {
-				barMap.put(ticker, bar);
-			} else {
-				barMap.remove(ticker);
-			}
+		if (parser == null)
+			return;
+
+		Bar bar = parser.getBar();
+		if (bar == null) {
+			barMap.remove(ticker);
+		} else {
+			barMap.put(ticker, bar);
 		}
 	}
 
 	private void handleParserEnd(String ticker, CSVparser parser) {
-		if (loopOnEnd) {
-			try {
-				parser.restart();
-				return;
-			} catch (Exception e) {
-				// fall through to close and cleanup
-			}
-		}
 		isFinished.put(ticker, true);
 		try {
 			parser.close();
@@ -187,9 +178,12 @@ public class StockExchange {
 	private void onBarClose() {
 		// Remove any tickers that are finished
 		isFinished.forEach((ticker, finished) -> {
-			if (finished)
-				barMap.remove(ticker);
 		});
+
+		for (String ticker : isFinished.keySet()) {
+			if (isFinished.get(ticker))
+				barMap.remove(ticker);
+		}
 		// Remove bars with invalid close prices (zero or negative)
 		barMap.entrySet().removeIf(entry -> entry.getValue().close() <= 0.0);
 		// If no valid bars after cleanup, skip notifying listeners

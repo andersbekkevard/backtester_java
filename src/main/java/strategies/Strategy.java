@@ -1,36 +1,46 @@
 package strategies;
 
 import java.util.Map;
+import java.util.Objects;
 
 import accounts.BarListener;
 import accounts.Portfolio;
-import accounts.Order;
 import engine.Bar;
 import io.Logger;
-import resources.enums.OrderType;
 
 /**
- * Concrete trading strategy for AAPL based on BaseStrategy.
+ * Abstract base class for trading strategies. Handles bar validation and error
+ * catching.
  */
-public class Strategy extends BaseStrategy {
+public abstract class Strategy implements BarListener {
+    protected final Portfolio portfolio;
+    protected final Logger logger;
 
     public Strategy(Portfolio portfolio, Logger logger) {
-        super(portfolio, logger);
+        this.portfolio = Objects.requireNonNull(portfolio);
+        this.logger = Objects.requireNonNull(logger);
     }
 
     @Override
-    protected void onBars(Map<String, Bar> bars) {
-        Bar aaplBar = bars.get("AAPL");
-        if (aaplBar != null) {
-            double close = aaplBar.close();
-            if (close <= 0.0) {
-                logger.error("AAPL close price is invalid: " + close);
+    public final void acceptBars(Map<String, Bar> bars) {
+        try {
+            if (bars == null || bars.isEmpty()) {
                 return;
             }
-            int amountToBuy = (int) Math.floor(portfolio.getCashReserve() / close);
-            if (portfolio.getInvestedRatio() < 0.99 && portfolio.getQuantity("AAPL") == 0 && amountToBuy > 0) {
-                portfolio.placeOrder(new Order("AAPL", OrderType.BUY, amountToBuy));
+            for (Map.Entry<String, Bar> entry : bars.entrySet()) {
+                if (entry.getValue() == null) {
+                    logger.error(entry.getKey() + " bar is null");
+                    return;
+                }
             }
+            onBars(bars);
+        } catch (Exception e) {
+            logger.error("Error in strategy processing bars: " + bars, e);
         }
     }
+
+    /**
+     * Called after validation for subclasses to implement strategy logic.
+     */
+    protected abstract void onBars(Map<String, Bar> bars);
 }
