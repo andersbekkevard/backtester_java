@@ -54,6 +54,6 @@ To add your own strategy:
 2. Implement the `onBars` method with your trading logic.
 3. Register your strategy in `App.java` using `BacktestOrchestrator.StrategyConfig`.
 
-## AI Usage
+## LLM Usage
 
 This project has been created with the help of ChatGPT-4.1, especially for writing printing and visualization logic, as well as implementing several of the strategies.
