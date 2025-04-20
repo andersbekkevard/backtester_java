@@ -56,4 +56,4 @@ To add your own strategy:
 
 ## AI Usage
 
-This project has been created with the help of ChatGPT-4.1, especially for writing printing and visualization logic, as well as implementing several strategies.
+This project has been created with the help of ChatGPT-4.1, especially for writing printing and visualization logic, as well as implementing several of the strategies.
