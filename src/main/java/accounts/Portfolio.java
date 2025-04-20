@@ -1,10 +1,15 @@
-package infrastructure;
+package accounts;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
+import engine.Bar;
+import io.Logger;
 import resources.enums.OrderType;
 
 /**
@@ -13,11 +18,26 @@ import resources.enums.OrderType;
 public class Portfolio implements BarListener {
 
 	/* ================================= Fields ================================= */
-	private Strategy strategy;
+
 	private final double startingCash;
 	private double cashReserve;
 	private final Map<String, Integer> positions = new HashMap<>();
 	private final Map<String, Double> closePrices = new HashMap<>();
+
+	/**
+	 * Returns an unmodifiable view of the current positions (ticker -> quantity).
+	 */
+	public Map<String, Integer> getPositions() {
+		return Collections.unmodifiableMap(positions);
+	}
+
+	/**
+	 * Returns an unmodifiable view of the current close prices (ticker -> price).
+	 */
+	public Map<String, Double> getClosePrices() {
+		return Collections.unmodifiableMap(closePrices);
+	}
+
 	private final List<Order> pendingOrders = new ArrayList<>();
 	/**
 	 * History is now kept in a dumb list. In the future I plan to extend this
@@ -26,26 +46,17 @@ public class Portfolio implements BarListener {
 	 * etc
 	 */
 	private final List<Double> history = new ArrayList<>();
+	private final PortfolioHistory historyTracker = new PortfolioHistory();
+	private final Logger logger;
 
 	/* =============================== Constructor ============================== */
-	public Portfolio(double startingCash) {
+	/**
+	 * Create a Portfolio with initial cash and logger.
+	 */
+	public Portfolio(double startingCash, Logger logger) {
 		this.startingCash = startingCash;
 		this.cashReserve = startingCash;
-	}
-
-	public void setStrategy(Strategy strategy) {
-		if (strategy == null)
-			throw new IllegalArgumentException();
-		if (strategy.equals(this.strategy))
-			return;
-		this.strategy = strategy;
-		if (!this.equals(strategy.getPortfolio())) {
-			strategy.setPortfolio(this);
-		}
-	}
-
-	public Strategy getStrategy() {
-		return strategy;
+		this.logger = Objects.requireNonNull(logger);
 	}
 
 	private double equityValue() {
@@ -61,29 +72,33 @@ public class Portfolio implements BarListener {
 			try {
 				executeSingleOrder(o);
 			} catch (IllegalStateException e) {
-				System.err.println("Insufficient funds. Order: " + o + " was not executed");
+				logger.error("Insufficient funds. Order: " + o + " was not executed", e);
 			}
 		}
 		pendingOrders.clear();
 	}
 
 	private void executeSingleOrder(Order o) {
-		if (!closePrices.containsKey(o.getTicker()))
-			throw new IllegalArgumentException("Dont have acces to price of this order");
+		if (!closePrices.containsKey(o.getTicker())) {
+			logger.error("Dont have access to price of this order: " + o);
+			return;
+		}
 
 		switch (o.getOrderType()) {
 			case OrderType.BUY -> {
-				if (o.getQuantity() * closePrices.get(o.getTicker()) > cashReserve)
-					throw new IllegalStateException("Dont have enough cash to place order");
-
+				if (o.getQuantity() * closePrices.get(o.getTicker()) > cashReserve) {
+					logger.error("Dont have enough cash to place order: " + o);
+					return;
+				}
 				positions.put(o.getTicker(), positions.getOrDefault(o.getTicker(), 0) + o.getQuantity());
 				cashReserve -= o.getQuantity() * closePrices.get(o.getTicker());
 			}
 
 			case OrderType.SELL -> {
-				if (o.getQuantity() > positions.getOrDefault(o.getTicker(), 0))
-					throw new IllegalStateException("Dont have enough holdings in this stock");
-
+				if (o.getQuantity() > positions.getOrDefault(o.getTicker(), 0)) {
+					logger.error("Dont have enough holdings in this stock to sell: " + o);
+					return;
+				}
 				positions.put(o.getTicker(), positions.getOrDefault(o.getTicker(), 0) - o.getQuantity());
 				cashReserve += o.getQuantity() * closePrices.get(o.getTicker());
 			}
@@ -95,12 +110,31 @@ public class Portfolio implements BarListener {
 		return history;
 	}
 
+	/**
+	 * Detailed history tracker of portfolio snapshots over time.
+	 */
+	public PortfolioHistory getHistoryTracker() {
+		return historyTracker;
+	}
+
 	@Override
 	public void acceptBars(Map<String, Bar> barMap) {
-		history.add(getValue());
-		closePrices.clear();
-		barMap.keySet().stream().forEach(t -> closePrices.put(t, barMap.get(t).close()));
+		// Record snapshot in history tracker
+		LocalDateTime timestamp = LocalDateTime.now();
+		double totalValue = getValue();
+		Map<String, Integer> positionsSnapshot = Collections.unmodifiableMap(new HashMap<>(positions));
+		historyTracker.record(timestamp, positionsSnapshot, totalValue);
+		// Keep simple value history for backwards compatibility
+		history.add(totalValue);
+		// Execute pending orders at the price used for sizing
 		executeOrders();
+		closePrices.clear();
+		for (String t : barMap.keySet()) {
+			Bar bar = barMap.get(t);
+			if (bar != null) {
+				closePrices.put(t, bar.close());
+			}
+		}
 	}
 
 	/* ======================== Portfolio to Strategy API ======================= */
@@ -124,6 +158,10 @@ public class Portfolio implements BarListener {
 		return startingCash;
 	}
 
+	public List<Order> getPendingOrders() {
+		return pendingOrders;
+	}
+
 	/**
 	 * Returns a double between 0 and 1 signifying the percentage of our funds that
 	 * are invested
@@ -133,4 +171,5 @@ public class Portfolio implements BarListener {
 	public double getInvestedRatio() {
 		return equityValue() / getValue();
 	}
+
 }

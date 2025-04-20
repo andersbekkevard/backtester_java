@@ -1,4 +1,4 @@
-package infrastructure;
+package accounts;
 
 import resources.enums.OrderType;
 
@@ -29,7 +29,26 @@ public class Order {
 
 	@Override
 	public String toString() {
-		return "Order [ticker=" + ticker + ", quantity=" + quantity + "]";
+		return "Order [ticker=" + ticker + ", type=" + type + ", quantity=" + quantity + "]";
 	}
 
+	@Override
+	public boolean equals(Object o) {
+		if (this == o)
+			return true;
+		if (o == null || getClass() != o.getClass())
+			return false;
+		Order order = (Order) o;
+		return quantity == order.quantity &&
+				ticker.equals(order.ticker) &&
+				type == order.type;
+	}
+
+	@Override
+	public int hashCode() {
+		int result = ticker.hashCode();
+		result = 31 * result + type.hashCode();
+		result = 31 * result + quantity;
+		return result;
+	}
 }

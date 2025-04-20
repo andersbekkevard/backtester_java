@@ -1,4 +1,4 @@
-package infrastructure;
+package strategies;
 
 public class Signal {
 
