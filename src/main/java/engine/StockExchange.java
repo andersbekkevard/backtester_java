@@ -23,17 +23,17 @@ public class StockExchange {
 
 	public static final String AAPL_TICKER = "AAPL";
 	public static final String MSFT_TICKER = "MSFT";
-	public static final String SNP_TICKER = "SNP";
+	public static final String SPY_TICKER = "SPY";
 	public static final String AAPL_PATH = "src\\main\\java\\resources\\data\\aapl.csv";
 	public static final String MSFT_PATH = "src\\main\\java\\resources\\data\\msft.csv";
-	public static final String SNP_PATH = "src\\main\\java\\resources\\data\\snp.csv";
+	public static final String SPY_PATH = "src\\main\\java\\resources\\data\\spy.csv";
 
 	public static StockExchange demoExchange(Logger logger) {
 		try {
 			StockExchange ex = new StockExchange(logger);
 			ex.addStock(AAPL_TICKER, AAPL_PATH);
 			ex.addStock(MSFT_TICKER, MSFT_PATH);
-			ex.addStock(SNP_TICKER, SNP_PATH);
+			ex.addStock(SPY_TICKER, SPY_PATH);
 			return ex;
 
 		} catch (IOException e) {

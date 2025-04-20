@@ -15,8 +15,8 @@ public class App {
 		Logger logger = new Logger(System.out);
 		List<BacktestOrchestrator.StrategyConfig> configs = new ArrayList<>();
 		configs.add(new BacktestOrchestrator.StrategyConfig(
-				"SNP",
-				(p, l) -> new BuyAndHoldStrategy(p, l, "SNP")));
+				"SPY",
+				(p, l) -> new BuyAndHoldStrategy(p, l, "SPY")));
 
 		configs.add(new BacktestOrchestrator.StrategyConfig(
 				"Buy & Hold",
