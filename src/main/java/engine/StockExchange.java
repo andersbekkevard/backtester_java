@@ -24,9 +24,10 @@ public class StockExchange {
 	public static final String AAPL_TICKER = "AAPL";
 	public static final String MSFT_TICKER = "MSFT";
 	public static final String SPY_TICKER = "SPY";
-	public static final String AAPL_PATH = "src\\main\\java\\resources\\data\\aapl.csv";
-	public static final String MSFT_PATH = "src\\main\\java\\resources\\data\\msft.csv";
-	public static final String SPY_PATH = "src\\main\\java\\resources\\data\\spy.csv";
+        // Use forward slashes so the demo works on Linux/Mac/Windows
+        public static final String AAPL_PATH = "src/main/java/resources/data/aapl.csv";
+        public static final String MSFT_PATH = "src/main/java/resources/data/msft.csv";
+        public static final String SPY_PATH = "src/main/java/resources/data/spy.csv";
 
 	public static StockExchange demoExchange(Logger logger) {
 		try {

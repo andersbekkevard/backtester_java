@@ -1,10 +1,11 @@
 import os
+import argparse
 import yfinance as yf
 import pandas as pd
 
-TICKERS = ["AAPL", "MSFT", "SPY"]
-START_DATE = "2000-01-01"
-END_DATE = "2010-01-01"
+DEFAULT_TICKERS = ["AAPL", "MSFT", "SPY"]
+DEFAULT_START = "2000-01-01"
+DEFAULT_END = "2010-01-01"
 
 OUTPUT_DIR = os.path.join("src", "main", "java", "resources", "data")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -25,10 +26,19 @@ def fetch_stock_data(symbol: str, start_date, end_date) -> pd.DataFrame:
 
 
 def main():
-    for ticker in TICKERS:
+    parser = argparse.ArgumentParser(description="Fetch historical stock data")
+    parser.add_argument("tickers", nargs="*", default=DEFAULT_TICKERS, help="List of tickers")
+    parser.add_argument("--start", default=DEFAULT_START, help="Start date YYYY-MM-DD")
+    parser.add_argument("--end", default=DEFAULT_END, help="End date YYYY-MM-DD")
+    parser.add_argument("--output", default=OUTPUT_DIR, help="Output directory")
+    args = parser.parse_args()
+
+    os.makedirs(args.output, exist_ok=True)
+
+    for ticker in args.tickers:
         print(f"Fetching {ticker}...")
-        df = fetch_stock_data(ticker, START_DATE, END_DATE)
-        file_path = os.path.join(OUTPUT_DIR, f"{ticker.lower()}.csv")
+        df = fetch_stock_data(ticker, args.start, args.end)
+        file_path = os.path.join(args.output, f"{ticker.lower()}.csv")
         if not df.empty:
             with open(file_path, "w", newline="") as f:
                 f.write(df.to_csv())
