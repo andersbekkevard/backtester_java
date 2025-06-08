@@ -14,19 +14,19 @@ import resources.enums.OrderType;
 public class EMAStrategy extends Strategy {
 	private static final int EMA_PERIOD = 20;
 
-	private final EMASignal signal;
+        private final EMASignal signal;
 	private Double prevClose = null;
 	private Double prevEma = null;
 
-	public EMAStrategy(Portfolio portfolio, Logger logger) {
-		super(portfolio, logger);
-		this.signal = new EMASignal(this, EMA_PERIOD);
-	}
+        public EMAStrategy(Portfolio portfolio, Logger logger) {
+                super(portfolio, logger);
+                this.signal = new EMASignal(this, EMA_PERIOD);
+                addSignal(signal);
+        }
 
 	@Override
 	protected void onBars(Map<String, Bar> bars) {
-		signal.update(bars);
-		Bar aaplBar = bars.get("AAPL");
+                Bar aaplBar = bars.get("AAPL");
 		if (aaplBar != null) {
 			double close = aaplBar.close();
 			if (close <= 0.0) {

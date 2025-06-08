@@ -42,14 +42,14 @@ public class BacktestOrchestrator {
 		wireDependencies();
 	}
 
-	private void wireDependencies() {
-		for (Portfolio p : portfolios) {
-			exchange.addPortfolio(p);
-		}
-		for (Strategy s : strategies) {
-			exchange.addStrategy(s);
-		}
-	}
+        private void wireDependencies() {
+                for (Portfolio p : portfolios) {
+                        exchange.addBarListener(p);
+                }
+                for (Strategy s : strategies) {
+                        exchange.addBarListener(s);
+                }
+        }
 
 	public void runBacktest() {
 		exchange.run();
