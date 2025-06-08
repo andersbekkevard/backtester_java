@@ -5,7 +5,7 @@ This is still work in progress, but it is already functional.
 
 ## Overview
 
-This project allows you to test and compare trading strategies on historical data. The system is modular, so stock universes, strategies and signals can easily be switched. The system takes CSV-files on Date-OHLCV format. They can easily be downloaded from Yahoo Finance using import_data.py. Just remember to add the new tickers and paths to the StockExchange
+This project allows you to test and compare trading strategies on historical data. The system is modular, so stock universes, strategies and signals can easily be switched. The system takes CSV-files on Date-OHLCV format. They can easily be downloaded from Yahoo Finance using `import_data.py`. The script now accepts tickers and date ranges on the command line for quick test setup
 
 ## Examples
 
@@ -38,7 +38,31 @@ This project allows you to test and compare trading strategies on historical dat
 
 ### Build and Run
 
-Clone repo and build maven. Run App.java
+1. Fetch example data using the helper script:
+
+   ```bash
+   python import_data.py AAPL MSFT SPY --start 2000-01-01 --end 2010-01-01
+   ```
+
+2. Compile and run the tests:
+
+   ```bash
+   mvn test
+   ```
+
+3. Launch the backtester (charts are skipped automatically when no display is available):
+
+   ```bash
+   mvn exec:java
+   ```
+
+   The orchestrator will write each strategy's performance to CSV files under the `results/` directory.
+
+4. Visualize the results:
+
+   ```bash
+   python visualize_results.py results
+   ```
 
 ## Usage Example
 

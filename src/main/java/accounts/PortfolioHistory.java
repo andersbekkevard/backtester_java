@@ -9,9 +9,16 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.format.DateTimeFormatter;
 import java.util.stream.Collectors;
 
 import javax.swing.SwingUtilities;
+import java.awt.GraphicsEnvironment;
+import java.awt.HeadlessException;
 
 import org.knowm.xchart.SwingWrapper;
 import org.knowm.xchart.XYChart;
@@ -36,9 +43,28 @@ public class PortfolioHistory {
 		snapshots.add(new Snapshot(timestamp, positions, totalValue));
 	}
 
-	public List<Snapshot> getSnapshots() {
-		return Collections.unmodifiableList(snapshots);
-	}
+        public List<Snapshot> getSnapshots() {
+                return Collections.unmodifiableList(snapshots);
+        }
+
+        /**
+         * Write the tracked portfolio values to a CSV file with two columns:
+         * timestamp and total value.
+         *
+         * @param path output path for the csv file
+         * @throws IOException if writing fails
+         */
+        public void saveToCsv(Path path) throws IOException {
+                Files.createDirectories(path.getParent());
+                DateTimeFormatter fmt = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
+                try (PrintWriter pw = new PrintWriter(Files.newBufferedWriter(path))) {
+                        pw.println("Timestamp,TotalValue");
+                        for (Snapshot s : snapshots) {
+                                String ts = s.getTimestamp().format(fmt);
+                                pw.println(ts + "," + s.getTotalValue());
+                        }
+                }
+        }
 
 	public static class Snapshot {
 		private final LocalDateTime timestamp;
@@ -99,12 +125,18 @@ public class PortfolioHistory {
 		// Add data series
 		chart.addSeries("Total Value", dates, values);
 
-		// Display chart, always from a background thread
-		if (SwingUtilities.isEventDispatchThread()) {
-			new Thread(() -> new SwingWrapper<>(chart).displayChart()).start();
-		} else {
-			new SwingWrapper<>(chart).displayChart();
-		}
+                // Display chart unless running headless
+                if (!GraphicsEnvironment.isHeadless()) {
+                        try {
+                                if (SwingUtilities.isEventDispatchThread()) {
+                                        new Thread(() -> new SwingWrapper<>(chart).displayChart()).start();
+                                } else {
+                                        new SwingWrapper<>(chart).displayChart();
+                                }
+                        } catch (HeadlessException ignore) {
+                                // ignore when no display is available
+                        }
+                }
 	}
 
 	/**
@@ -154,10 +186,16 @@ public class PortfolioHistory {
 			List<Double> values = snaps.stream().map(Snapshot::getTotalValue).collect(Collectors.toList());
 			chart.addSeries(label, dates, values);
 		}
-		if (SwingUtilities.isEventDispatchThread()) {
-			new Thread(() -> new SwingWrapper<>(chart).displayChart()).start();
-		} else {
-			new SwingWrapper<>(chart).displayChart();
-		}
-	}
+                if (!GraphicsEnvironment.isHeadless()) {
+                        try {
+                                if (SwingUtilities.isEventDispatchThread()) {
+                                        new Thread(() -> new SwingWrapper<>(chart).displayChart()).start();
+                                } else {
+                                        new SwingWrapper<>(chart).displayChart();
+                                }
+                        } catch (HeadlessException ignore) {
+                                // ignore when no display is available
+                        }
+                }
+        }
 }

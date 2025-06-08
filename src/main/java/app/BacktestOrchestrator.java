@@ -66,17 +66,27 @@ public class BacktestOrchestrator {
 	/**
 	 * Prints a comprehensive backtest result summary.
 	 */
-	public void onFinish() {
-		logger.infoNoFlag(SEPARATOR);
-		logger.infoNoFlag("      BACKTEST RESULT SUMMARY");
-		logger.infoNoFlag(SEPARATOR);
+        public void onFinish() {
+                logger.infoNoFlag(SEPARATOR);
+                logger.infoNoFlag("      BACKTEST RESULT SUMMARY");
+                logger.infoNoFlag(SEPARATOR);
 
-		for (int i = 0; i < portfolios.size(); i++) {
-			logger.infoNoFlag("\n" + SEPARATOR);
-			logger.infoNoFlag(String.format(" STRATEGY: %-40s ", labels.get(i)));
-			logger.infoNoFlag(SEPARATOR);
-			printPortfolioSummary(portfolios.get(i));
-		}
+                java.io.File resultsDir = new java.io.File("results");
+                resultsDir.mkdirs();
+
+                for (int i = 0; i < portfolios.size(); i++) {
+                        logger.infoNoFlag("\n" + SEPARATOR);
+                        logger.infoNoFlag(String.format(" STRATEGY: %-40s ", labels.get(i)));
+                        logger.infoNoFlag(SEPARATOR);
+                        printPortfolioSummary(portfolios.get(i));
+                        try {
+                                String safe = labels.get(i).replaceAll("[^a-zA-Z0-9_-]", "_");
+                                java.nio.file.Path out = java.nio.file.Paths.get("results", safe + ".csv");
+                                portfolios.get(i).getHistoryTracker().saveToCsv(out);
+                        } catch (Exception e) {
+                                logger.error("Failed to write history", e);
+                        }
+                }
 
 		logger.infoNoFlag("==============================");
 	}
