@@ -42,44 +42,50 @@ public class Portfolio implements BarListener {
 		this.logger = Objects.requireNonNull(logger);
 	}
 
-	private void executeOrders() {
-		for (Order o : pendingOrders) {
-			try {
-				executeSingleOrder(o);
-			} catch (IllegalStateException e) {
-				logger.error("Insufficient funds. Order: " + o + " was not executed", e);
-			}
-		}
-		pendingOrders.clear();
-	}
+       private void executeOrders() {
+               List<Order> remaining = new ArrayList<>();
+               for (Order o : pendingOrders) {
+                       try {
+                               if (!executeSingleOrder(o)) {
+                                       remaining.add(o);
+                               }
+                       } catch (IllegalStateException e) {
+                               logger.error("Insufficient funds. Order: " + o + " was not executed", e);
+                               remaining.add(o);
+                       }
+               }
+               pendingOrders.clear();
+               pendingOrders.addAll(remaining);
+       }
 
-	private void executeSingleOrder(Order o) {
-		if (!closePrices.containsKey(o.getTicker())) {
-			logger.error("Dont have access to price of this order: " + o);
-			return;
-		}
+       private boolean executeSingleOrder(Order o) {
+               if (!closePrices.containsKey(o.getTicker())) {
+                       logger.error("Dont have access to price of this order: " + o);
+                       return false;
+               }
 
 		switch (o.getOrderType()) {
 			case OrderType.BUY -> {
-				if (o.getQuantity() * closePrices.get(o.getTicker()) > cashReserve) {
-					logger.error("Dont have enough cash to place order: " + o);
-					return;
-				}
-				positions.put(o.getTicker(), positions.getOrDefault(o.getTicker(), 0) + o.getQuantity());
-				cashReserve -= o.getQuantity() * closePrices.get(o.getTicker());
-			}
+                               if (o.getQuantity() * closePrices.get(o.getTicker()) > cashReserve) {
+                                       logger.error("Dont have enough cash to place order: " + o);
+                                       return false;
+                               }
+                               positions.put(o.getTicker(), positions.getOrDefault(o.getTicker(), 0) + o.getQuantity());
+                               cashReserve -= o.getQuantity() * closePrices.get(o.getTicker());
+                               }
 
 			case OrderType.SELL -> {
-				if (o.getQuantity() > positions.getOrDefault(o.getTicker(), 0)) {
-					logger.error("Dont have enough holdings in this stock to sell: " + o);
-					return;
-				}
-				positions.put(o.getTicker(), positions.getOrDefault(o.getTicker(), 0) - o.getQuantity());
-				cashReserve += o.getQuantity() * closePrices.get(o.getTicker());
-			}
-			default -> throw new AssertionError();
-		}
-	}
+                               if (o.getQuantity() > positions.getOrDefault(o.getTicker(), 0)) {
+                                       logger.error("Dont have enough holdings in this stock to sell: " + o);
+                                       return false;
+                               }
+                               positions.put(o.getTicker(), positions.getOrDefault(o.getTicker(), 0) - o.getQuantity());
+                               cashReserve += o.getQuantity() * closePrices.get(o.getTicker());
+                               }
+                       default -> throw new AssertionError();
+               }
+               return true;
+       }
 
 	/**
 	 * Records snapshot in historytracker, then executes orders and finally updates

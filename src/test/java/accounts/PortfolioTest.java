@@ -44,4 +44,13 @@ public class PortfolioTest {
         assertEquals(10000.0, startingCash, 0.0001);
     }
 
+    @Test
+    public void testOrderRetainedWhenPriceMissing() {
+        portfolio.placeOrder(new Order("AAPL", resources.enums.OrderType.BUY, 1));
+        java.util.Map<String, engine.Bar> bars = new java.util.HashMap<>();
+        bars.put("MSFT", new engine.Bar(java.time.LocalDateTime.now(), 1, 1, 1, 1, 1));
+        portfolio.acceptBars(bars);
+        assertEquals(1, portfolio.getPendingOrders().size());
+    }
+
 }
