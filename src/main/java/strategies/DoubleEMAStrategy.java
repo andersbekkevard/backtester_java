@@ -22,18 +22,17 @@ public class DoubleEMAStrategy extends Strategy {
 	private Double prevCloseMSFT = null;
 	private Double prevEmaMSFT = null;
 
-	public DoubleEMAStrategy(Portfolio portfolio, Logger logger) {
-		super(portfolio, logger);
-		this.signal = new EMASignal(this, EMA_PERIOD);
-	}
+        public DoubleEMAStrategy(Portfolio portfolio, Logger logger) {
+                super(portfolio, logger);
+                this.signal = new EMASignal(this, EMA_PERIOD);
+                addSignal(signal);
+        }
 
 	@Override
 	protected void onBars(Map<String, Bar> bars) {
-		signal.update(bars);
-
-		if (bars == null || bars.get(STOCK1) == null || bars.get(STOCK2) == null) {
-			return;
-		}
+                if (bars == null || bars.get(STOCK1) == null || bars.get(STOCK2) == null) {
+                        return;
+                }
 
 		// Get close and EMA for both stocks
 		Bar aaplBar = bars.get(STOCK1);

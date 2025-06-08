@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import accounts.BarListener;
 import accounts.Portfolio;
 import io.CSVparser;
 import io.Logger;
@@ -56,8 +57,7 @@ public class StockExchange {
 	 * It is important that a strategy is initialized with a portfolio
 	 * This is handled by the BactestOrchestrator
 	 */
-	private final List<Strategy> strategies = new ArrayList<>();
-	private final List<Portfolio> portfolios = new ArrayList<>();
+        private final List<BarListener> listeners = new ArrayList<>();
 
 	/*
 	 * Barmap is filled up each day, and all listeners are notified before moving on
@@ -105,20 +105,23 @@ public class StockExchange {
 	 * 
 	 * @param portfolio
 	 */
-	public void addPortfolio(Portfolio portfolio) {
-		if (!portfolios.contains(portfolio))
-			portfolios.add(portfolio);
-	}
+        public void addPortfolio(Portfolio portfolio) {
+                addBarListener(portfolio);
+        }
 
 	/**
 	 * Adds a strategy to be notified
 	 * 
 	 * @param strategy
 	 */
-	public void addStrategy(Strategy strategy) {
-		if (!strategies.contains(strategy))
-			strategies.add(strategy);
-	}
+        public void addStrategy(Strategy strategy) {
+                addBarListener(strategy);
+        }
+
+        public void addBarListener(BarListener listener) {
+                if (!listeners.contains(listener))
+                        listeners.add(listener);
+        }
 
 	/* =============================== Event Loop =============================== */
 	public void run() {
@@ -191,11 +194,10 @@ public class StockExchange {
 		if (barMap.isEmpty()) {
 			return;
 		}
-		Map<String, Bar> outputMap = Collections.unmodifiableMap(barMap);
-		portfolios.stream().forEach(p -> p.acceptBars(outputMap));
-		strategies.stream().forEach(s -> s.acceptBars(outputMap));
-		barMap.clear();
-	}
+                Map<String, Bar> outputMap = Collections.unmodifiableMap(barMap);
+                listeners.forEach(l -> l.acceptBars(outputMap));
+                barMap.clear();
+        }
 
 	/**
 	 * Helper method to know wheter all CSV-parsers are finished parsing
